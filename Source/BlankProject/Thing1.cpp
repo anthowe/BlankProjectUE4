@@ -9,6 +9,12 @@
 #include "Camera/CameraComponent.h"
 #include "GameFramework/Controller.h"
 #include "Components/InputComponent.h"
+#include "Thing1PawnMovementComponent.h"
+#include "Kismet/KismetMaterialLibrary.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Particles/ParticleSystem.h"
+#include "Particles/ParticleSystemComponent.h"
+
 
 
 // Sets default values
@@ -24,33 +30,100 @@ AThing1::AThing1()
 
 	StaticMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Visual Representation"));
 	RootComponent = StaticMesh;
+	
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereVisualAsset(TEXT("/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube"));
+
+	
 
 	if (SphereVisualAsset.Succeeded())
 	{
 		StaticMesh->SetStaticMesh(SphereVisualAsset.Object);
 		StaticMesh->SetRelativeLocation(FVector(0.f, 0.f, 0.f));
-		StaticMesh->SetWorldScale3D(FVector(0.8f));
+		StaticMesh->SetWorldScale3D(FVector(.8f));
 	}
+
+	OtherMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Other Mesh"));
+	OtherMesh->SetupAttachment(StaticMesh);
+	//OtherMesh->AddLocalOffset(FVector(0.f, 0.f, 10.f));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Pyramid(TEXT("/Game/StarterContent/Shapes/Shape_QuadPyramid.Shape_QuadPyramid"));
+
+	if (Pyramid.Succeeded())
+	{
+		OtherMesh->SetStaticMesh(Pyramid.Object);
+		OtherMesh->SetRelativeLocation(FVector(0.f, 0.f, 150.f));
+		OtherMesh->SetWorldScale3D(FVector(.3f));
+	}
+
+	static ConstructorHelpers::FObjectFinder<UMaterial> MatObj(TEXT("/Game/M_Thing1.M_Thing1"));
+	static ConstructorHelpers::FObjectFinder<UMaterial> MatObj1(TEXT("/Game/M_Thing2.M_Thing2"));
+	
+	if (MatObj.Succeeded()) 
+	{
+		StoredMaterial = MatObj.Object;
+	}
+
+	DynamicMaterialInst = UMaterialInstanceDynamic::Create(StoredMaterial, StaticMesh);
+
+	if (MatObj1.Succeeded())
+	{
+		StoredMaterial1 = MatObj1.Object;
+	}
+
+	DynamicMaterialInst1 = UMaterialInstanceDynamic::Create(StoredMaterial1, OtherMesh);
+
+	StaticMesh->SetMaterial(0, DynamicMaterialInst);
+	OtherMesh->SetMaterial(0, DynamicMaterialInst1);
+
+	
+	
+
+	//UMaterialInstanceDynamic* DynMat = UMaterialInstanceDynamic::Create(MatObj.Object, this);
 
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("Spring Arm"));
 	SpringArm->SetupAttachment(RootComponent);
 	SpringArm->TargetArmLength = 400.f;
 	SpringArm->RelativeRotation = FRotator(-45.f, 0.f, 0.f);
 	SpringArm->bUsePawnControlRotation = true;
-	SpringArm->bInheritPitch = false;
+	SpringArm->bInheritPitch = true;
+	SpringArm->bEnableCameraLag = true;
 
 	ActualCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("Actual Camera"));
 	ActualCamera->SetupAttachment(SpringArm, USpringArmComponent::SocketName);
 	ActualCamera->bUsePawnControlRotation = false;
 
-	float Val = 100.f;
+	
+	
+	AutoPossessPlayer = EAutoReceiveInput::Player0;
+
+	OurMovementComponent = CreateDefaultSubobject<UThing1PawnMovementComponent>(TEXT("CustomMovementComponent"));
+	OurMovementComponent->UpdatedComponent = RootComponent;
+
+	Thing1Particles = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("Thing 1 Particles"));
+	Thing1Particles->SetupAttachment(RootComponent);
+
+
+	static ConstructorHelpers::FObjectFinder<UParticleSystem>ParticleAsset(TEXT("/Game/StarterContent/Particles/P_Steam_Lit.P_Steam_Lit"));
+
+	if (ParticleAsset.Succeeded()) 
+	{
+		Thing1Particles->SetTemplate(ParticleAsset.Object);
+	}
+
+	BaseTurnRate = 20.f;
+	LookUpAtRate = 45.f;
+	
 }
 
 // Called when the game starts or when spawned
 void AThing1::BeginPlay()
 {
 	Super::BeginPlay();
+	
+
+		
+
+	
+	
 	
 }
 
@@ -68,6 +141,9 @@ void AThing1::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 
 	PlayerInputComponent->BindAxis("MoveForward", this, &AThing1::MoveForward);
 	PlayerInputComponent->BindAxis("MoveRight", this, &AThing1::MoveRight);
+	PlayerInputComponent->BindAxis("MoveUp", this, &AThing1::MoveUp);
+	PlayerInputComponent->BindAxis("Turn", this, &AThing1::Turn);
+	PlayerInputComponent->BindAxis("LookUp", this, &AThing1::LookUp);
 }
 
 void AThing1::MoveForward(float Val)
@@ -77,9 +153,10 @@ void AThing1::MoveForward(float Val)
 	const FRotator YawRotation(0.f, Rotation.Yaw, 0.f);
 	const FVector Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 	
+	
 	if (Val != 0) 
 	{
-		AddMovementInput(Direction, Val);
+		AddMovementInput(Direction * Val);
 		UE_LOG(LogTemp, Warning, TEXT("W pressed"));
 
 
@@ -94,12 +171,37 @@ void AThing1::MoveRight(float Val)
 	const FRotator YawRotation(0.f, Rotation.Yaw, 0.f);
 	const FVector Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
+	
+
 	if (Val != 0)
 	{
-		AddMovementInput(Direction, Val);
+		AddMovementInput(Direction, (Val));
 		UE_LOG(LogTemp, Warning, TEXT("A pressed"));
 
 
 	}
 }
+
+void AThing1::MoveUp(float Val)
+{
+	
+	if (Val != 0) 
+	{
+		AddMovementInput(GetActorUpVector() * Val );
+	}
+	
+}
+
+void AThing1::Turn(float Val)
+{
+	
+
+	AddControllerYawInput(BaseTurnRate * Val * GetWorld()->GetDeltaSeconds());
+}
+
+void AThing1::LookUp(float Val)
+{
+	AddControllerPitchInput(LookUpAtRate * Val * GetWorld()->GetDeltaSeconds());
+}
+
 

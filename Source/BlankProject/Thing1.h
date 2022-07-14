@@ -17,6 +17,8 @@ public:
 
 	class UStaticMeshComponent* StaticMesh;
 
+	class UStaticMeshComponent* OtherMesh;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category ="Pawn Setup")
 	class USpringArmComponent* SpringArm;
 
@@ -26,6 +28,19 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Pawn Setup")
 	class USphereComponent* SphereComponent;
+
+	class UThing1PawnMovementComponent* OurMovementComponent;
+
+	UMaterial* StoredMaterial;
+	UMaterial* StoredMaterial1;
+
+	UMaterialInstanceDynamic* DynamicMaterialInst;
+	UMaterialInstanceDynamic* DynamicMaterialInst1;
+
+	UParticleSystemComponent* Thing1Particles;
+
+	float BaseTurnRate;
+	float LookUpAtRate;
 
 protected:
 	// Called when the game starts or when spawned
@@ -43,4 +58,11 @@ public:
 
 	void MoveRight(float Val);
 
+	void MoveUp(float Val);
+	
+	
+
+	void Turn(float Val);
+
+	void LookUp(float Val);
 };
